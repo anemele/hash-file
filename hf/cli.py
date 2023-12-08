@@ -3,12 +3,11 @@ import sys
 from itertools import chain
 from os.path import isfile
 from pathlib import Path
-from typing import Iterable
 
 import click
 
 from .core import w1, w2
-from .core.check import check_multi_file, check_single_file
+from .core.check import T_CHECK, check_files, check_sum_file
 from .log import logger
 
 
@@ -45,13 +44,13 @@ def add_cmd(callback, name: str | None = None):
                     ['--save'],
                     is_flag=True,
                     default=False,
-                    help='redirect to single file. (not text mode)',
+                    help='redirect to multi-file. (not text mode)',
                 ),
                 click.Option(
-                    ['--save2'],
+                    ['--sum'],
                     is_flag=True,
                     default=False,
-                    help='redirect to multi-files. (not text mode)',
+                    help='redirect to a sum file. (not text mode)',
                 ),
             ],
         )
@@ -74,12 +73,12 @@ def f(algorithm: str):
             files = filter(isfile, chain.from_iterable(map(glob.iglob, item)))
             func = w1(algorithm)
 
-            if kw['save']:
+            if kw['sum']:
                 data = '\n'.join(f'{func(i)}  {i}' for i in files)
                 Path(algorithm.upper()).write_text(data)
-            elif kw['save2']:
+            elif kw['save']:
                 for i in files:
-                    Path(i).with_suffix(f'.{algorithm}').write_text(func(i))
+                    Path(i + f'.{algorithm}').write_text(func(i))
             else:
                 for d, i in map(func, files):
                     sys.stdout.write(f'{d}  {i}\n')
@@ -96,20 +95,20 @@ add_cmd(f('sha3_256'), 'sha3')
 
 
 @cli.command(name='check')
-@click.option('--file', type=Path, help='digest file with algorithm name')
-@click.option('--ext', help='digest files with extension. (start with dot `.`)')
-def check(file: Path | None = None, ext: str | None = None):
-    """no message is good message"""
+@click.argument('file', nargs=-1)
+@click.option('--sum', help='checksum file')
+def check(file: tuple[str], sum: str | None):
     logger.debug(f'{file=}')
-    logger.debug(f'{ext=}')
+    logger.debug(f'{sum=}')
 
-    def pprint(check_result: Iterable[tuple[bool, str]]):
-        for ok, path in check_result:
-            logger.debug(f'{ok} {path}')
-            if not ok:
-                logger.info(f'bad file: {path}')
+    files = filter(isfile, chain.from_iterable(map(glob.iglob, file)))
 
-    if file is not None:
-        pprint(check_single_file(file))
-    if ext is not None:
-        pprint(check_multi_file(ext))
+    def pprint(check_result: T_CHECK):
+        for ok, path, msg in check_result:
+            if ok:
+                msg = 'good'
+            logger.info(f'{msg}: {path}')
+
+    pprint(check_files(files))
+    if sum is not None:
+        pprint(check_sum_file(sum))
