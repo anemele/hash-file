@@ -1,36 +1,46 @@
 #!/usr/bin/env python3
 # -*- encoding: utf-8 -*-
 
-""" Get hash of file(s). """
+"""Get hash of file(s)."""
 import argparse
 import glob
 import hashlib
 import os.path
 from functools import partial
 from itertools import chain
-from typing import AnyStr, Callable
+from typing import AnyStr
 
-algorithm_available = ('md5', 'sha1', 'sha256', 'sha512')
-algorithm_default = 'md5'
-chunk_size = 1 << 20
+ALGORITHM_AVAILABLE = {
+    'md5',
+    'sha1',
+    'sha224',
+    'sha256',
+    'sha384',
+    'sha512',
+    'sha3_224',
+    'sha3_256',
+    'sha3_384',
+    'sha3_512',
+    # 'shake_128', 'shake_256', # a parameter `length` required
+    'blake2b',
+    'blake2s',
+}
+ALGORITHM_DEFAULT = 'md5'
 
 
-def hash_file(file: AnyStr, func: Callable, caps: bool) -> str:
-    hash_ = func()
+def hash_file(file: AnyStr, func: str, caps: bool) -> str:
     with open(file, 'rb') as fp:
-        while True:
-            if not (block := fp.read(chunk_size)):
-                break
-            hash_.update(block)
-    hexdigest = hash_.hexdigest()
-    return hexdigest.upper() if caps else hexdigest
+        # 3.11+
+        hash_ = hashlib.file_digest(fp, func)
+    digest = hash_.hexdigest()
+    return digest.upper() if caps else digest
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('file', nargs='+', type=str, help='files')
-    parser.add_argument('-a', '--alg', type=str, help='hash algorithm')
-    parser.add_argument('--caps', action='store_true', help='capital digest')
+    parser.add_argument('-a', type=str, help='algorithm')
+    parser.add_argument('-c', action='store_true', help='capitalized')
 
     return parser.parse_args()
 
@@ -39,17 +49,20 @@ def main():
     args = parse_args()
     # print(args)
     # return
+    a: str = args.a
+    c: bool = args.c
+    args_file: list[str] = args.file
 
-    alg = args.alg
-    if alg is None or alg not in algorithm_available:
-        algorithm = algorithm_default
+    if a is None:
+        algorithm = ALGORITHM_DEFAULT
+    elif a not in ALGORITHM_AVAILABLE:
+        print(f'[WARNING] {a} not available, use {ALGORITHM_DEFAULT} instead.')
+        algorithm = ALGORITHM_DEFAULT
     else:
-        algorithm = alg
-    caps = args.caps
-    file = args.file
+        algorithm = a
 
-    hash_func = partial(hash_file, func=getattr(hashlib, algorithm), caps=caps)
-    files = filter(os.path.isfile, chain.from_iterable(map(glob.iglob, file)))
+    hash_func = partial(hash_file, func=algorithm, caps=c)
+    files = filter(os.path.isfile, chain.from_iterable(map(glob.iglob, args_file)))
 
     for file in files:
         print(f'{hash_func(file)}  {file}')
