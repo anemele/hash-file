@@ -80,8 +80,8 @@ def f(algorithm: str):
                 for i in files:
                     Path(i + f'.{algorithm}').write_text(func(i))
             else:
-                for d, i in map(func, files):
-                    sys.stdout.write(f'{d}  {i}\n')
+                for i in files:
+                    sys.stdout.write(f'{func(i)}  {i}\n')
 
     g.__name__ = algorithm
     return g
