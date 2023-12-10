@@ -101,14 +101,15 @@ def check(file: tuple[str], sum: str | None):
     logger.debug(f'{file=}')
     logger.debug(f'{sum=}')
 
-    files = filter(isfile, chain.from_iterable(map(glob.iglob, file)))
-
     def pprint(check_result: T_CHECK):
         for ok, path, msg in check_result:
             if ok:
                 msg = 'good'
+            elif msg is None:
+                msg = 'bad'
             logger.info(f'{msg}: {path}')
 
+    files = filter(isfile, chain.from_iterable(map(glob.iglob, file)))
     pprint(check_files(files))
     if sum is not None:
         pprint(check_sum_file(sum))
